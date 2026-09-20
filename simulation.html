@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hospital Management Simulator - Hospital Resource Management Simulator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              darkBg: '#080e1a',
+              cardBg: '#0f172a',
+              accent: '#0ea5e9'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans antialiased min-h-screen flex flex-col selection:bg-sky-500 selection:text-white">
+
+  <!-- Header Bar -->
+  <header class="bg-slate-900/90 border-b border-slate-800 backdrop-blur sticky top-0 z-40 px-4 py-3 flex flex-wrap justify-between items-center shadow-lg">
+    <div class="flex items-center space-x-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-teal-400 flex items-center justify-center text-white shadow-md shadow-sky-500/20">
+        <i class="fa-solid fa-hospital-user text-xl"></i>
+      </div>
+      <div>
+        <div class="flex items-center space-x-2">
+          <h1 class="text-xl font-bold bg-gradient-to-r from-sky-400 via-teal-300 to-emerald-400 bg-clip-text text-transparent">
+            Hospital Management Simulator
+          </h1>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 border border-sky-500/30 font-medium">Standard Triage Queue</span>
+          <span id="backend-status-badge" class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-medium flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Local Engine Active
+          </span>
+        </div>
+        <p class="text-xs text-slate-400">By Team Hackstreet Boys</p>
+      </div>
+    </div>
+
+    <!-- Navigation & Action Controls -->
+    <div class="flex items-center space-x-2 mt-2 sm:mt-0">
+      <nav class="flex items-center space-x-1 bg-slate-950/60 p-1 rounded-xl border border-slate-800">
+        <button id="tab-simulator-btn" onclick="switchTab('simulator')" class="px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg transition-all duration-200 bg-sky-600 text-white shadow-sm flex items-center gap-2">
+          <i class="fa-solid fa-sliders"></i> Simulator Controls
+        </button>
+        <button id="tab-readme-btn" onclick="switchTab('readme')" class="px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg text-slate-400 hover:text-slate-200 transition-all duration-200 flex items-center gap-2">
+          <i class="fa-solid fa-book"></i> User Guide
+        </button>
+      </nav>
+
+      <!-- System Reset Button -->
+      <button id="reset-btn" onclick="resetSystemAPI()" title="Reset System State (Hotkey: R)" class="px-3 py-1.5 text-xs sm:text-sm font-medium rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 transition-all duration-200 flex items-center gap-1.5 shadow-sm active:scale-95">
+        <i class="fa-solid fa-rotate-left text-xs"></i> Reset State <kbd class="hidden sm:inline-block ml-1 px-1.5 py-0.2 text-[10px] bg-red-950/80 border border-red-500/40 rounded text-red-300 font-mono">R</kbd>
+      </button>
+    </div>
+  </header>
+
+  <!-- Notification Toast -->
+  <div id="toast-notification" class="fixed top-16 right-4 z-50 transform translate-y-[-100%] opacity-0 transition-all duration-300 pointer-events-none bg-slate-800 text-slate-100 px-4 py-2.5 rounded-xl border border-slate-700 shadow-xl flex items-center gap-2 text-xs">
+    <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400"></i>
+    <span id="toast-message">System state reset.</span>
+  </div>
+
+  <!-- Main Content Body -->
+  <main class="flex-1 p-4 lg:p-6 max-w-[1600px] w-full mx-auto">
+
+    <!-- ==================== TAB 1: SIMULATOR DASHBOARD ==================== -->
+    <div id="tab-simulator" class="space-y-6">
+      
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+        <!-- Entry Mode Switcher Header -->
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-5 border-b border-slate-800 pb-4">
+          <div>
+            <h2 class="text-xs font-bold uppercase tracking-wider text-sky-400 flex items-center gap-2">
+              <i class="fa-solid fa-hospital-user"></i> Patient Admission & Flow Engine
+            </h2>
+            <p class="text-[11px] text-slate-400">Select manual single entry or automated database simulation with speed multipliers</p>
+          </div>
+
+          <!-- Mode Toggle Tabs -->
+          <div class="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
+            <button id="mode-btn-manual" onclick="switchEntryMode('manual')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-sky-600 text-white shadow transition-all flex items-center gap-1.5">
+              <i class="fa-solid fa-pen-to-square text-xs"></i> Manual Entry
+            </button>
+            <button id="mode-btn-simulation" onclick="switchEntryMode('simulation')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5">
+              <i class="fa-solid fa-microchip text-xs"></i> Database Simulation
+            </button>
+          </div>
+        </div>
+
+        <!-- MODE 1: MANUAL PATIENT ADMISSION FORM -->
+        <div id="entry-mode-manual" class="space-y-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-xs">
+            <div>
+              <label class="block text-slate-400 mb-1">Patient Name</label>
+              <input id="input-name" type="text" placeholder="e.g. John Doe" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-sky-500">
+            </div>
+            <div>
+              <label class="block text-slate-400 mb-1">Age</label>
+              <input id="input-age" type="number" placeholder="Enter age" min="1" max="120" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-sky-500">
+            </div>
+            <div>
+              <label class="block text-slate-400 mb-1">Gender</label>
+              <select id="input-gender" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-sky-500">
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-slate-400 mb-1">Severity Tier</label>
+              <select id="input-severity" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-sky-500 font-semibold text-sky-300">
+                <option value="1">1 - Critical (ICU / Surgery Priority)</option>
+                <option value="2" selected>2 - Moderate Priority</option>
+                <option value="3">3 - Mild Priority</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-slate-400 mb-1">Diagnosis / Disease</label>
+              <input id="input-disease" type="text" placeholder="e.g. Cardiac Arrest, Trauma, Fever" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-sky-500">
+            </div>
+          </div>
+          <div class="flex justify-end pt-2">
+            <button onclick="admitPatientAPI()" class="px-6 py-2.5 bg-gradient-to-r from-sky-600 to-teal-600 hover:from-sky-500 hover:to-teal-500 text-white font-semibold text-xs rounded-xl shadow-lg transition flex items-center justify-center gap-2">
+              <i class="fa-solid fa-plus-circle"></i> Admit Patient
+            </button>
+          </div>
+        </div>
+
+        <!-- MODE 2: DATABASE SIMULATION CONTROLS & MULTIPLIER -->
+        <div id="entry-mode-simulation" class="hidden space-y-5">
+          <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+            
+            <!-- Left Controls: Play/Pause, Multiplier & Auto-Discharge -->
+            <div class="md:col-span-8 bg-slate-950 border border-slate-800/80 p-4 rounded-xl space-y-4">
+              <div class="flex flex-wrap justify-between items-center gap-3">
+                <div class="flex items-center gap-3">
+                  <button id="sim-play-btn" onclick="toggleSimulation()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl shadow transition flex items-center gap-2">
+                    <i id="sim-play-icon" class="fa-solid fa-play"></i>
+                    <span id="sim-play-text">Start Simulation</span>
+                  </button>
+                  <span id="sim-live-indicator" class="hidden text-xs px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-medium flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> Live Patient Stream
+                  </span>
+                </div>
+
+                <!-- Arrival Speed Multiplier Buttons -->
+                <div class="flex items-center gap-1.5">
+                  <span class="text-[11px] text-slate-400 mr-1 font-mono">Speed Multiplier:</span>
+                  <button id="mult-1x" onclick="setMultiplier(1)" class="px-2.5 py-1 text-xs font-mono font-bold rounded-lg bg-sky-600 text-white border border-sky-500 transition">1x</button>
+                  <button id="mult-2x" onclick="setMultiplier(2)" class="px-2.5 py-1 text-xs font-mono font-bold rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition">2x</button>
+                  <button id="mult-5x" onclick="setMultiplier(5)" class="px-2.5 py-1 text-xs font-mono font-bold rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition">5x</button>
+                  <button id="mult-10x" onclick="setMultiplier(10)" class="px-2.5 py-1 text-xs font-mono font-bold rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition">10x</button>
+                </div>
+              </div>
+
+              <!-- Options & Dynamic Surge Injections -->
+              <div class="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-900 text-xs">
+                <label class="flex items-center gap-2 text-slate-300 cursor-pointer select-none">
+                  <input id="chk-auto-discharge" type="checkbox" onchange="toggleAutoDischarge(this.checked)" class="w-4 h-4 rounded bg-slate-900 border-slate-700 text-sky-500 focus:ring-sky-500">
+                  <span>Enable Auto-Discharge Loop (Simulate Stay Duration)</span>
+                </label>
+
+                <div class="flex items-center gap-2">
+                  <button onclick="triggerSurge(5)" class="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-medium transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-bolt text-xs"></i> +5 Patient Surge
+                  </button>
+                  <button onclick="triggerSurge(10)" class="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 rounded-lg text-xs font-medium transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-truck-medical text-xs"></i> +10 Mass Casualty Event
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Telemetry: Live Generator Stats -->
+            <div class="md:col-span-4 bg-slate-950 border border-slate-800/80 p-4 rounded-xl flex flex-col justify-between">
+              <h4 class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
+                <i class="fa-solid fa-chart-line text-sky-400"></i> Simulation Telemetry
+              </h4>
+              <div class="grid grid-cols-2 gap-2 text-center my-auto">
+                <div class="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
+                  <span id="stat-gen-count" class="block text-lg font-bold text-sky-400 font-mono">0</span>
+                  <span class="text-[10px] text-slate-400">Total Generated</span>
+                </div>
+                <div class="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
+                  <span id="stat-dis-count" class="block text-lg font-bold text-emerald-400 font-mono">0</span>
+                  <span class="text-[10px] text-slate-400">Auto Discharged</span>
+                </div>
+              </div>
+              <p class="text-[10px] text-slate-500 italic mt-2 text-center">Simulated arrivals use probabilistic clinical disease distributions.</p>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Real-time Room Status Matrix - Grouped by Department -->
+      <div class="space-y-6">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+            <i class="fa-solid fa-hospital text-sky-400"></i> Departmental Bed & Room Matrix
+          </h2>
+          <span id="total-occupancy-badge" class="text-xs font-mono px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-slate-300">
+            0 / 18 Beds Occupied
+          </span>
+        </div>
+
+        <!-- Section 1: Intensive Care Unit (ICU) -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl">
+          <div class="flex items-center justify-between mb-3 border-b border-slate-800/80 pb-2">
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-lg bg-red-500/20 text-red-400 flex items-center justify-center border border-red-500/30">
+                <i class="fa-solid fa-heart-pulse text-xs"></i>
+              </div>
+              <h3 class="text-xs font-bold text-slate-100 uppercase tracking-wider">Intensive Care Unit (ICU)</h3>
+            </div>
+            <span id="icu-vacancy-tag" class="text-[11px] font-mono px-2 py-0.5 rounded-md bg-red-500/10 text-red-400 border border-red-500/20">
+              6 / 6 Vacant
+            </span>
+          </div>
+          <div id="icu-room-matrix" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+        <!-- Section 2: Operating Rooms (OR / Surgical Suites) -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl">
+          <div class="flex items-center justify-between mb-3 border-b border-slate-800/80 pb-2">
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center border border-purple-500/30">
+                <i class="fa-solid fa-syringe text-xs"></i>
+              </div>
+              <h3 class="text-xs font-bold text-slate-100 uppercase tracking-wider">Operating Rooms (Surgical Suites)</h3>
+            </div>
+            <span id="or-vacancy-tag" class="text-[11px] font-mono px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-400 border border-purple-500/20">
+              4 / 4 Vacant
+            </span>
+          </div>
+          <div id="or-room-matrix" class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+        <!-- Section 3: General Wards -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl">
+          <div class="flex items-center justify-between mb-3 border-b border-slate-800/80 pb-2">
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                <i class="fa-solid fa-bed text-xs"></i>
+              </div>
+              <h3 class="text-xs font-bold text-slate-100 uppercase tracking-wider">General Wards</h3>
+            </div>
+            <span id="gw-vacancy-tag" class="text-[11px] font-mono px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              8 / 8 Vacant
+            </span>
+          </div>
+          <div id="gw-room-matrix" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Priority Queue Table & Treatments -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Patient Queue Display -->
+        <div class="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl">
+          <div class="flex justify-between items-center mb-3">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-sky-400 flex items-center gap-2">
+              <i class="fa-solid fa-list-ol"></i> Triage Queue (Sorted by Severity)
+            </h3>
+            <span id="queue-count-badge" class="px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 text-xs font-mono">0 Waiting</span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-950 text-slate-400 border-b border-slate-800">
+                <tr>
+                  <th class="p-2">ID</th>
+                  <th class="p-2">Name</th>
+                  <th class="p-2">Severity</th>
+                  <th class="p-2">Age</th>
+                  <th class="p-2">Disease</th>
+                  <th class="p-2 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody id="queue-table-body" class="divide-y divide-slate-800/50">
+                <!-- Dynamic Queue Rows -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Treatment Log -->
+        <div class="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-400 mb-3 flex items-center gap-2">
+            <i class="fa-solid fa-file-medical"></i> Treatment Log
+          </h3>
+          <div id="treatment-list" class="flex-1 space-y-2 overflow-y-auto max-h-[300px] pr-1">
+            <!-- Dynamic Treatment Logs -->
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ==================== TAB 2: USER GUIDE ==================== -->
+    <div id="tab-readme" class="hidden space-y-6">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl text-slate-300 text-sm space-y-4">
+        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-book-bookmark text-sky-400"></i> System Operational Manual & Capacity Specs
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 my-4">
+          <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl">
+            <h4 class="font-bold text-red-400 text-xs uppercase mb-1">ICU (6 Beds)</h4>
+            <p class="text-xs text-slate-400">Dedicated for Severity Tier 1 critical patients needing continuous intensive care.</p>
+          </div>
+          <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl">
+            <h4 class="font-bold text-purple-400 text-xs uppercase mb-1">Operating Rooms (4 Suites)</h4>
+            <p class="text-xs text-slate-400">Specialized surgical suites for trauma and immediate surgical interventions.</p>
+          </div>
+          <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl">
+            <h4 class="font-bold text-emerald-400 text-xs uppercase mb-1">General Wards (8 Beds)</h4>
+            <p class="text-xs text-slate-400">Accommodates Moderate (Tier 2) and Mild (Tier 3) priority hospital admissions.</p>
+          </div>
+        </div>
+        <ul class="list-disc pl-5 space-y-2 text-xs text-slate-300">
+          <li><strong>Manual Patient Admission:</strong> Select Severity Tier (1: Critical, 2: Moderate, 3: Mild). Critical patients prioritize ICU beds or Operating Suites.</li>
+          <li><strong>Automated Priority Queueing:</strong> When all relevant section rooms are occupied, patients wait in the Triage Queue.</li>
+          <li><strong>Instant Discharge & Re-allocation:</strong> Discharging a patient instantly frees their bed and automatically admits the top queued priority patient.</li>
+          <li><strong>System Reset Shortcut:</strong> Press <kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-sky-400 font-mono">R</kbd> anywhere on your keyboard (outside form inputs) to restore initial default state.</li>
+        </ul>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    let isBackendConnected = false;
+    let nextPatientId = 1;
+
+    // Dual Mode & Simulation Engine State
+    let currentEntryMode = 'manual'; // 'manual' | 'simulation'
+    let isSimulationRunning = false;
+    let simMultiplier = 1; // 1x, 2x, 5x, 10x
+    let isAutoDischargeActive = false;
+    let simTimer = null;
+    let autoDischargeTimer = null;
+    let simStats = { generatedCount: 0, dischargedCount: 0 };
+
+    // Simulated Diseases Dataset categorized by Clinical Severity
+    const simulatedDiseases = {
+      1: ['Acute Myocardial Infarction', 'Severe Surgical Trauma', 'Respiratory Failure', 'Acute Stroke', 'Septic Shock'],
+      2: ['Complex Fracture', 'Acute Appendicitis', 'Severe Asthma Flare', 'Abdominal Pain', 'High Fever & Dehydration'],
+      3: ['Mild Concussion', 'Laceration Repair', 'Upper Respiratory Infection', 'Minor Sprain', 'Migraine']
+    };
+
+    const mockNames = [
+      'Patient 1', 'Patient 2', 'Patient 3', 'Patient 4', 'Patient 5',
+      'Patient 6', 'Patient 7', 'Patient 8', 'Patient 9', 'Patient 10'
+    ];
+
+    // Clean Default State with 18 Total Rooms across 3 Sections
+    function getDefaultState() {
+      return {
+        rooms: [
+          // ICU Section (6 Rooms)
+          { id: 'ICU-1', name: 'ICU Bed 1', type: 'ICU', isVacant: true, occupiedBy: null },
+          { id: 'ICU-2', name: 'ICU Bed 2', type: 'ICU', isVacant: true, occupiedBy: null },
+          { id: 'ICU-3', name: 'ICU Bed 3', type: 'ICU', isVacant: true, occupiedBy: null },
+          { id: 'ICU-4', name: 'ICU Bed 4', type: 'ICU', isVacant: true, occupiedBy: null },
+          { id: 'ICU-5', name: 'ICU Bed 5', type: 'ICU', isVacant: true, occupiedBy: null },
+          { id: 'ICU-6', name: 'ICU Bed 6', type: 'ICU', isVacant: true, occupiedBy: null },
+
+          // Operating Rooms / Surgical Suites (4 Rooms)
+          { id: 'OR-1', name: 'Operating Suite 1', type: 'Surgery', isVacant: true, occupiedBy: null },
+          { id: 'OR-2', name: 'Operating Suite 2', type: 'Surgery', isVacant: true, occupiedBy: null },
+          { id: 'OR-3', name: 'Operating Suite 3', type: 'Surgery', isVacant: true, occupiedBy: null },
+          { id: 'OR-4', name: 'Operating Suite 4', type: 'Surgery', isVacant: true, occupiedBy: null },
+
+          // General Wards (8 Beds)
+          { id: 'GW-1', name: 'General Ward Bed 1', type: 'General', isVacant: true, occupiedBy: null },
+          { id: 'GW-2', name: 'General Ward Bed 2', type: 'General', isVacant: true, occupiedBy: null },
+          { id: 'GW-3', name: 'General Ward Bed 3', type: 'General', isVacant: true, occupiedBy: null },
+          { id: 'GW-4', name: 'General Ward Bed 4', type: 'General', isVacant: true, occupiedBy: null },
+          { id: 'GW-5', name: 'General Ward Bed 5', type: 'General', isVacant: true, occupiedBy: null },
+          { id: 'GW-6', name: 'General Ward Bed 6', type: 'General', isVacant: true, occupiedBy: null },
+          { id: 'GW-7', name: 'General Ward Bed 7', type: 'General', isVacant: true, occupiedBy: null },
+          { id: 'GW-8', name: 'General Ward Bed 8', type: 'General', isVacant: true, occupiedBy: null }
+        ],
+        staff: [
+          { id: 'DOC-101', name: 'Doctor 1', role: 'Surgeon' },
+          { id: 'DOC-102', name: 'Doctor 2', role: 'ICU Specialist' },
+          { id: 'NUR-201', name: 'Nurse 1', role: 'Senior Nurse' }
+        ],
+        queue: [],
+        treatments: []
+      };
+    }
+
+    let appState = getDefaultState();
+
+    function showToast(message, isError = false) {
+      const toast = document.getElementById('toast-notification');
+      const msgEl = document.getElementById('toast-message');
+      const iconEl = document.getElementById('toast-icon');
+      if (!toast || !msgEl) return;
+
+      msgEl.innerText = message;
+      if (isError) {
+        iconEl.className = 'fa-solid fa-circle-exclamation text-red-400';
+      } else {
+        iconEl.className = 'fa-solid fa-circle-check text-emerald-400';
+      }
+
+      toast.classList.remove('translate-y-[-100%]', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+
+      setTimeout(() => {
+        toast.classList.remove('translate-y-0', 'opacity-100');
+        toast.classList.add('translate-y-[-100%]', 'opacity-0');
+      }, 2500);
+    }
+
+    function sortQueue() {
+      appState.queue.sort((a, b) => {
+        if (a.severity !== b.severity) return a.severity - b.severity; // Severity 1 first
+        if (a.age !== b.age) return a.age - b.age; // Younger first
+        return a.arrivalTime - b.arrivalTime; // FCFS
+      });
+    }
+
+    function switchTab(tabKey) {
+      ['simulator', 'readme'].forEach(key => {
+        const tabEl = document.getElementById(`tab-${key}`);
+        const btnEl = document.getElementById(`tab-${key}-btn`);
+        if (tabEl) tabEl.classList.add('hidden');
+        if (btnEl) btnEl.className = 'px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg text-slate-400 hover:text-slate-200 transition-all duration-200 flex items-center gap-2';
+      });
+
+      const activeTab = document.getElementById(`tab-${tabKey}`);
+      const activeBtn = document.getElementById(`tab-${tabKey}-btn`);
+      if (activeTab) activeTab.classList.remove('hidden');
+      if (activeBtn) activeBtn.className = 'px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg transition-all duration-200 bg-sky-600 text-white shadow-sm flex items-center gap-2';
+    }
+
+    async function fetchState() {
+      try {
+        const res = await fetch('http://127.0.0.1:5000/api/state').catch(() => null);
+        if (res && res.ok) {
+          appState = await res.json();
+          isBackendConnected = true;
+          updateStatusBadge(true);
+        } else {
+          isBackendConnected = false;
+          updateStatusBadge(false);
+        }
+      } catch (err) {
+        isBackendConnected = false;
+        updateStatusBadge(false);
+      }
+      renderUI();
+    }
+
+    function updateStatusBadge(connected) {
+      const badge = document.getElementById('backend-status-badge');
+      if (badge) {
+        if (connected) {
+          badge.className = 'text-xs px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-300 border border-teal-500/30 font-medium flex items-center gap-1';
+          badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse"></span> Flask API Connected';
+        } else {
+          badge.className = 'text-xs px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 border border-sky-500/30 font-medium flex items-center gap-1';
+          badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse"></span> Local Engine Active';
+        }
+      }
+    }
+
+    // Smart Triage Room Allocation based on Severity Tier
+    function findVacantRoomForSeverity(severity) {
+      if (severity === 1) {
+        // Critical Patients prioritize ICU, then OR, then General
+        return appState.rooms.find(r => r.isVacant && r.type === 'ICU') ||
+               appState.rooms.find(r => r.isVacant && r.type === 'Surgery') ||
+               appState.rooms.find(r => r.isVacant);
+      } else {
+        // Moderate/Mild Patients prioritize General Wards, then ICU or OR if needed
+        return appState.rooms.find(r => r.isVacant && r.type === 'General') ||
+               appState.rooms.find(r => r.isVacant);
+      }
+    }
+
+    async function admitPatientAPI() {
+      const nameInput = document.getElementById('input-name');
+      const diseaseInput = document.getElementById('input-disease');
+      
+      const name = nameInput.value.trim() || `Patient #${nextPatientId}`;
+      const age = parseInt(document.getElementById('input-age').value) || 30;
+      const gender = document.getElementById('input-gender').value;
+      const severity = parseInt(document.getElementById('input-severity').value);
+      const disease = diseaseInput.value.trim() || 'General Admission';
+
+      try {
+        if (isBackendConnected) {
+          const res = await fetch('http://127.0.0.1:5000/api/patient', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, age, gender, severity, disease })
+          });
+          if (res.ok) {
+            nameInput.value = '';
+            diseaseInput.value = '';
+            fetchState();
+            showToast(`Patient ${name} admitted successfully.`);
+            return;
+          }
+        }
+      } catch (e) {
+        console.log("Using local state fallback for admission");
+      }
+
+      // Local fallback logic
+      const pId = nextPatientId++;
+      const availableRoom = findVacantRoomForSeverity(severity);
+
+      if (availableRoom) {
+        availableRoom.isVacant = false;
+        availableRoom.occupiedBy = pId;
+        appState.treatments.unshift({
+          id: `TRT-${Math.floor(1000 + Math.random() * 9000)}`,
+          patientId: pId,
+          staffId: severity === 1 ? 'DOC-102' : 'DOC-101',
+          details: `Admitted for ${disease}. Allocated to ${availableRoom.name}`,
+          date: new Date().toLocaleTimeString()
+        });
+      } else {
+        appState.queue.push({
+          id: pId,
+          name: name,
+          age: age,
+          gender: gender,
+          severity: severity,
+          severityTag: severity === 1 ? '1 - Critical' : (severity === 2 ? '2 - Moderate' : '3 - Mild'),
+          disease: disease,
+          arrivalTime: Date.now()
+        });
+        sortQueue();
+      }
+
+      // Clear form inputs
+      nameInput.value = '';
+      diseaseInput.value = '';
+
+      showToast(`Patient ${name} admitted.`);
+      renderUI();
+    }
+
+    async function dischargePatientAPI(pId) {
+      try {
+        if (isBackendConnected) {
+          const res = await fetch(`http://127.0.0.1:5000/api/discharge/${pId}`, { method: 'POST' });
+          if (res.ok) {
+            fetchState();
+            showToast(`Patient #${pId} discharged.`);
+            return;
+          }
+        }
+      } catch (e) {
+        console.log("Using local state fallback for discharge");
+      }
+
+      // Local fallback logic
+      appState.queue = appState.queue.filter(p => p.id !== pId);
+
+      const occupiedRoom = appState.rooms.find(r => r.occupiedBy === pId);
+      if (occupiedRoom) {
+        occupiedRoom.isVacant = true;
+        occupiedRoom.occupiedBy = null;
+
+        // Auto assign waiting patient from queue if present
+        if (appState.queue.length > 0) {
+          sortQueue();
+          const nextPatient = appState.queue.shift();
+          occupiedRoom.isVacant = false;
+          occupiedRoom.occupiedBy = nextPatient.id;
+          appState.treatments.unshift({
+            id: `TRT-${Math.floor(1000 + Math.random() * 9000)}`,
+            patientId: nextPatient.id,
+            staffId: 'DOC-101',
+            details: `Triage Re-allocation: Assigned to ${occupiedRoom.name} upon room discharge`,
+            date: new Date().toLocaleTimeString()
+          });
+        }
+      }
+      showToast(`Patient #${pId} discharged.`);
+      renderUI();
+    }
+
+    async function resetSystemAPI() {
+      try {
+        if (isBackendConnected) {
+          const res = await fetch('http://127.0.0.1:5000/api/reset', { method: 'POST' });
+          if (res.ok) {
+            fetchState();
+            resetSimulationStats();
+            showToast("System reset to default state.");
+            return;
+          }
+        }
+      } catch (e) {
+        console.log("Using local state fallback for reset");
+      }
+
+      // Local state reset
+      if (isSimulationRunning) stopSimulation();
+      nextPatientId = 1;
+      resetSimulationStats();
+      appState = getDefaultState();
+      renderUI();
+      showToast("System state reset.");
+    }
+
+    function switchEntryMode(mode) {
+      currentEntryMode = mode;
+      const manualContainer = document.getElementById('entry-mode-manual');
+      const simContainer = document.getElementById('entry-mode-simulation');
+      const manualBtn = document.getElementById('mode-btn-manual');
+      const simBtn = document.getElementById('mode-btn-simulation');
+
+      if (mode === 'manual') {
+        manualContainer.classList.remove('hidden');
+        simContainer.classList.add('hidden');
+        manualBtn.className = 'px-3 py-1.5 text-xs font-semibold rounded-lg bg-sky-600 text-white shadow transition-all flex items-center gap-1.5';
+        simBtn.className = 'px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5';
+      } else {
+        manualContainer.classList.add('hidden');
+        simContainer.classList.remove('hidden');
+        simBtn.className = 'px-3 py-1.5 text-xs font-semibold rounded-lg bg-sky-600 text-white shadow transition-all flex items-center gap-1.5';
+        manualBtn.className = 'px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5';
+      }
+    }
+
+    function setMultiplier(mult) {
+      simMultiplier = mult;
+      [1, 2, 5, 10].forEach(m => {
+        const btn = document.getElementById(`mult-${m}x`);
+        if (btn) {
+          if (m === mult) {
+            btn.className = 'px-2.5 py-1 text-xs font-mono font-bold rounded-lg bg-sky-600 text-white border border-sky-500 transition';
+          } else {
+            btn.className = 'px-2.5 py-1 text-xs font-mono font-bold rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition';
+          }
+        }
+      });
+
+      // Restart timers with new frequency if active
+      if (isSimulationRunning) {
+        restartSimulationTimers();
+      }
+      showToast(`Simulation speed set to ${mult}x`);
+    }
+
+    function toggleSimulation() {
+      if (isSimulationRunning) {
+        stopSimulation();
+      } else {
+        startSimulation();
+      }
+    }
+
+    function startSimulation() {
+      isSimulationRunning = true;
+      const playBtnText = document.getElementById('sim-play-text');
+      const playBtnIcon = document.getElementById('sim-play-icon');
+      const playBtn = document.getElementById('sim-play-btn');
+      const liveTag = document.getElementById('sim-live-indicator');
+
+      if (playBtnText) playBtnText.innerText = 'Pause Simulation';
+      if (playBtnIcon) playBtnIcon.className = 'fa-solid fa-pause';
+      if (playBtn) playBtn.className = 'px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold rounded-xl shadow transition flex items-center gap-2';
+      if (liveTag) liveTag.classList.remove('hidden');
+
+      restartSimulationTimers();
+      showToast(`Database simulation started at ${simMultiplier}x speed.`);
+    }
+
+    function stopSimulation() {
+      isSimulationRunning = false;
+      if (simTimer) clearInterval(simTimer);
+      if (autoDischargeTimer) clearInterval(autoDischargeTimer);
+
+      const playBtnText = document.getElementById('sim-play-text');
+      const playBtnIcon = document.getElementById('sim-play-icon');
+      const playBtn = document.getElementById('sim-play-btn');
+      const liveTag = document.getElementById('sim-live-indicator');
+
+      if (playBtnText) playBtnText.innerText = 'Start Simulation';
+      if (playBtnIcon) playBtnIcon.className = 'fa-solid fa-play';
+      if (playBtn) playBtn.className = 'px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl shadow transition flex items-center gap-2';
+      if (liveTag) liveTag.classList.add('hidden');
+
+      showToast("Database simulation paused.");
+    }
+
+    function restartSimulationTimers() {
+      if (simTimer) clearInterval(simTimer);
+      if (autoDischargeTimer) clearInterval(autoDischargeTimer);
+
+      const arrivalInterval = Math.max(400, 4000 / simMultiplier);
+      simTimer = setInterval(generateSimulatedPatient, arrivalInterval);
+
+      if (isAutoDischargeActive) {
+        const dischargeInterval = Math.max(600, 5000 / simMultiplier);
+        autoDischargeTimer = setInterval(runAutoDischargeTick, dischargeInterval);
+      }
+    }
+
+    function toggleAutoDischarge(enabled) {
+      isAutoDischargeActive = enabled;
+      if (isSimulationRunning) {
+        restartSimulationTimers();
+      }
+      showToast(enabled ? "Auto-Discharge loop enabled." : "Auto-Discharge loop disabled.");
+    }
+
+    function generateSimulatedPatient() {
+      // Probabilistic Severity: 20% Severity 1, 50% Severity 2, 30% Severity 3
+      const randSev = Math.random();
+      const severity = randSev < 0.2 ? 1 : (randSev < 0.7 ? 2 : 3);
+      const diseaseList = simulatedDiseases[severity];
+      const disease = diseaseList[Math.floor(Math.random() * diseaseList.length)];
+      const name = `${mockNames[Math.floor(Math.random() * mockNames.length)]} #${nextPatientId}`;
+      const age = Math.floor(18 + Math.random() * 65);
+      const gender = Math.random() > 0.5 ? 'Male' : 'Female';
+      simStats.generatedCount++;
+      updateTelemetryUI();
+
+      // Submit patient via existing admission handler
+      admitPatientCustom(name, age, gender, severity, disease);
+    }
+
+    function runAutoDischargeTick() {
+      const occupiedRooms = appState.rooms.filter(r => !r.isVacant);
+      if (occupiedRooms.length > 0) {
+        const targetRoom = occupiedRooms[Math.floor(Math.random() * occupiedRooms.length)];
+        if (targetRoom && targetRoom.occupiedBy) {
+          simStats.dischargedCount++;
+          updateTelemetryUI();
+          dischargePatientAPI(targetRoom.occupiedBy);
+        }
+      }
+    }
+
+    function triggerSurge(count) {
+      showToast(`Injecting ${count}-patient emergency surge!`);
+      for (let i = 0; i < count; i++) {
+        setTimeout(generateSimulatedPatient, i * 150);
+      }
+    }
+
+    async function admitPatientCustom(name, age, gender, severity, disease) {
+      try {
+        if (isBackendConnected) {
+          await fetch('http://127.0.0.1:5000/api/patient', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, age, gender, severity, disease })
+          });
+          fetchState();
+          return;
+        }
+      } catch (e) {}
+
+      // Local fallback execution
+      const pId = nextPatientId++;
+      const availableRoom = findVacantRoomForSeverity(severity);
+
+      if (availableRoom) {
+        availableRoom.isVacant = false;
+        availableRoom.occupiedBy = pId;
+        appState.treatments.unshift({
+          id: `TRT-${Math.floor(1000 + Math.random() * 9000)}`,
+          patientId: pId,
+          staffId: severity === 1 ? 'DOC-102' : 'DOC-101',
+          details: `Admitted for ${disease}. Allocated to ${availableRoom.name}`,
+          date: new Date().toLocaleTimeString()
+        });
+      } else {
+        appState.queue.push({
+          id: pId,
+          name: name,
+          age: age,
+          gender: gender,
+          severity: severity,
+          severityTag: severity === 1 ? '1 - Critical' : (severity === 2 ? '2 - Moderate' : '3 - Mild'),
+          disease: disease,
+          arrivalTime: Date.now()
+        });
+        sortQueue();
+      }
+      renderUI();
+    }
+
+    function resetSimulationStats() {
+      simStats = { generatedCount: 0, dischargedCount: 0 };
+      updateTelemetryUI();
+    }
+
+    function updateTelemetryUI() {
+      const genEl = document.getElementById('stat-gen-count');
+      const disEl = document.getElementById('stat-dis-count');
+      if (genEl) genEl.innerText = simStats.generatedCount;
+      if (disEl) disEl.innerText = simStats.dischargedCount;
+    }
+
+    // Keyboard Hotkey Listener ('R' or 'r' to trigger reset)
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const activeEl = document.activeElement;
+      const activeTag = activeEl ? activeEl.tagName.toUpperCase() : '';
+      if (['INPUT', 'SELECT', 'TEXTAREA'].includes(activeTag) || (activeEl && activeEl.isContentEditable)) {
+        return;
+      }
+
+      if (e.key === 'r' || e.key === 'R' || e.code === 'KeyR') {
+        e.preventDefault();
+        resetSystemAPI();
+      }
+    });
+
+    function renderRoomCard(r) {
+      let badgeColor = r.isVacant ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-sky-500/20 text-sky-400 border-sky-500/30';
+      return `
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 shadow-md transition-all flex flex-col justify-between">
+          <div>
+            <div class="flex justify-between items-start mb-1.5">
+              <span class="text-xs font-bold text-white font-mono">${r.id}</span>
+              <span class="text-[9px] px-1.5 py-0.5 rounded-full border ${badgeColor} font-mono">${r.isVacant ? 'Vacant' : 'Occupied'}</span>
+            </div>
+            <p class="text-[10px] text-slate-400 truncate">${r.name}</p>
+          </div>
+          <div class="mt-2.5 pt-2 border-t border-slate-900 flex items-center justify-between">
+            ${r.occupiedBy ? `
+              <span class="text-[10px] text-sky-400 font-mono flex items-center gap-1">
+                <i class="fa-solid fa-bed-pulse text-[9px]"></i> #${r.occupiedBy}
+              </span>
+              <button onclick="dischargePatientAPI(${r.occupiedBy})" class="px-1.5 py-0.5 bg-slate-800 hover:bg-red-950/80 text-red-400 rounded text-[9px] border border-red-500/30 transition">Discharge</button>
+            ` : `<span class="text-[10px] text-slate-500 italic">Available</span>`}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderUI() {
+      // 1. Render Grouped Departmental Rooms
+      const icuRooms = appState.rooms.filter(r => r.type === 'ICU');
+      const orRooms = appState.rooms.filter(r => r.type === 'Surgery');
+      const gwRooms = appState.rooms.filter(r => r.type === 'General');
+
+      const icuContainer = document.getElementById('icu-room-matrix');
+      const orContainer = document.getElementById('or-room-matrix');
+      const gwContainer = document.getElementById('gw-room-matrix');
+
+      if (icuContainer) icuContainer.innerHTML = icuRooms.map(renderRoomCard).join('');
+      if (orContainer) orContainer.innerHTML = orRooms.map(renderRoomCard).join('');
+      if (gwContainer) gwContainer.innerHTML = gwRooms.map(renderRoomCard).join('');
+
+      // Update Vacancy Counts
+      const totalOccupied = appState.rooms.filter(r => !r.isVacant).length;
+      const icuVacant = icuRooms.filter(r => r.isVacant).length;
+      const orVacant = orRooms.filter(r => r.isVacant).length;
+      const gwVacant = gwRooms.filter(r => r.isVacant).length;
+
+      const occBadge = document.getElementById('total-occupancy-badge');
+      if (occBadge) occBadge.innerText = `${totalOccupied} / 18 Beds Occupied`;
+
+      const icuTag = document.getElementById('icu-vacancy-tag');
+      if (icuTag) icuTag.innerText = `${icuVacant} / ${icuRooms.length} Vacant`;
+
+      const orTag = document.getElementById('or-vacancy-tag');
+      if (orTag) orTag.innerText = `${orVacant} / ${orRooms.length} Vacant`;
+
+      const gwTag = document.getElementById('gw-vacancy-tag');
+      if (gwTag) gwTag.innerText = `${gwVacant} / ${gwRooms.length} Vacant`;
+
+      // 2. Render Queue Table
+      const queueTable = document.getElementById('queue-table-body');
+      const queueBadge = document.getElementById('queue-count-badge');
+      if (queueBadge) queueBadge.innerText = `${appState.queue.length} Waiting`;
+
+      if (queueTable) {
+        if (appState.queue.length === 0) {
+          queueTable.innerHTML = `<tr><td colspan="6" class="p-4 text-slate-500 italic text-center text-xs">No patients currently waiting in triage queue.</td></tr>`;
+        } else {
+          queueTable.innerHTML = appState.queue.map(p => `
+            <tr class="hover:bg-slate-800/30 font-mono">
+              <td class="p-2 text-slate-400">#${p.id}</td>
+              <td class="p-2 font-semibold text-white">${p.name}</td>
+              <td class="p-2"><span class="px-2 py-0.5 rounded text-[10px] ${p.severity === 1 ? 'bg-red-500/20 text-red-400 border border-red-500/30' : (p.severity === 2 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-slate-500/20 text-slate-300')}">${p.severityTag || (p.severity === 1 ? '1 - Critical' : '2 - Moderate')}</span></td>
+              <td class="p-2 text-slate-300">${p.age} yrs</td>
+              <td class="p-2 text-slate-400">${p.disease}</td>
+              <td class="p-2 text-right">
+                <button onclick="dischargePatientAPI(${p.id})" class="px-2 py-1 bg-slate-800 hover:bg-red-950 text-red-400 rounded text-[11px] border border-red-500/20 transition">Discharge</button>
+              </td>
+            </tr>
+          `).join('');
+        }
+      }
+
+      // 3. Render Treatment Logs
+      const treatmentContainer = document.getElementById('treatment-list');
+      if (treatmentContainer) {
+        if (appState.treatments.length === 0) {
+          treatmentContainer.innerHTML = `<p class="text-xs text-slate-500 italic p-3 text-center">No recent treatment logs.</p>`;
+        } else {
+          treatmentContainer.innerHTML = appState.treatments.map(t => `
+            <div class="p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs space-y-1">
+              <div class="flex justify-between text-slate-400 font-mono text-[10px]">
+                <span>${t.id} (Patient #${t.patientId})</span>
+                <span>${t.date}</span>
+              </div>
+              <p class="text-slate-200 font-medium">${t.details}</p>
+            </div>
+          `).join('');
+        }
+      }
+    }
+
+    // Auto Refresh when connected to backend
+    setInterval(fetchState, 4000);
+    fetchState();
+  </script>
+</body>
+</html>
